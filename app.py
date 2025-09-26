@@ -531,19 +531,20 @@ def load_revolutionary_css():
     /* Enhanced Text Area */
     .stTextArea > div > div > textarea {
         background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
-        border: 2px solid rgba(78, 205, 196, 0.3);
+        border: 2px solid rgba(78, 205, 196, 0.5);
         border-radius: 15px;
         color: #E2E8F0;
         font-family: 'Rajdhani', sans-serif;
         font-size: 1.1rem;
         padding: 1rem;
         transition: all 0.3s ease;
+        caret-color: #4ECDC4;
     }
 
     .stTextArea > div > div > textarea:focus {
         border-color: #4ECDC4;
-        box-shadow: 0 0 20px rgba(78, 205, 196, 0.3);
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+        box-shadow: 0 0 20px rgba(78, 205, 196, 0.4);
+        background: linear-gradient(135deg, rgba(30, 30, 30, 0.9), rgba(50, 50, 50, 0.98));
     }
 
     /* Enhanced Radio Buttons */
@@ -1044,7 +1045,7 @@ def main():
     # Load revolutionary CSS
     load_revolutionary_css()
 
-    # Sidebar removed as requested
+    
 
     # Revolutionary Header
     st.markdown('<h1 class="main-title">DOCUVERSE AI</h1>', unsafe_allow_html=True)
@@ -1067,8 +1068,6 @@ def main():
     with top_cols[4]:
         if st.button("Q&A", key="top_qa"):
             st.session_state.active_page = 'qa'
-
-    # No secondary navigator (removed per request)
 
     if st.session_state.active_page == 'upload':
         st.markdown('<div class="content-section">', unsafe_allow_html=True)
@@ -1233,7 +1232,7 @@ def main():
                 st.markdown(f"""
                 <div class="metric-card">
                     <div class="metric-value">{stats['reading_time']}</div>
-                    <div class="metric-label">Neural Minutes</div>
+                    <div class="metric-label">Neural Seconds</div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -1263,10 +1262,10 @@ def main():
             st.markdown('<div class="content-section">', unsafe_allow_html=True)
             st.markdown('<h2 class="section-title">Advanced Summarization Engine</h2>', unsafe_allow_html=True)
 
-            # Layout: content left, parameters right
-            col1, col2 = st.columns([2, 1])
+            # Layout: parameters left (stack first on mobile), content right
+            col_params, col_content = st.columns([1, 2])
 
-            with col2:
+            with col_params:
                 st.markdown("""
                 <div class="cyber-card">
                     <h4 class="cyber-text">Parameters</h4>
@@ -1292,7 +1291,7 @@ def main():
 
                 length = st.slider("Length:", 2, 15, 8, key="quantum_length")
 
-            with col1:
+            with col_content:
                 if st.button("Generate Summary", key="quantum_summary_btn"):
                     with st.spinner("Generating summary..."):
                         result = st.session_state.quantum_summarizer.quantum_summarize(
@@ -1356,7 +1355,7 @@ SUMMARY:
                             key="download_pdf_btn"
                         )
                     
-                    # Clipboard option removed as requested
+                    
 
             st.markdown("---")
             if st.button("Reset", key="reset_summary"):
@@ -1516,4 +1515,3 @@ SUMMARY:
 
 if __name__ == "__main__":
     main()
-
