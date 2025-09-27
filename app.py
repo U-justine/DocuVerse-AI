@@ -1,50 +1,73 @@
 #!/usr/bin/env python3
 """
 🌟 DOCUVERSE AI 🌟
-Revolutionary PDF Assistant with stunning design and proper footer
+Revolutionary Document Assistant with stunning design
 Copyright © 2025 Justine & Krishna. All Rights Reserved.
 """
 
-import streamlit as st
-import PyPDF2
+import os
 import re
 import time
-import hashlib
 from datetime import datetime
-from typing import Dict, List, Tuple
-import io
-import base64
+from typing import List
+from difflib import SequenceMatcher
+from io import BytesIO
+import importlib.util
 
+import requests
+import streamlit as st
+from markupsafe import escape
+from pypdf import PdfReader
+from docx import Document
+from pptx import Presentation
+from sentence_transformers import SentenceTransformer, util
+from transformers import pipeline, AutoTokenizer
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer as SumyTokenizer
+from sumy.summarizers.lsa import LsaSummarizer
+import nltk
+import cohere
+from huggingface_hub import login as hf_login
+from dotenv import load_dotenv
+
+# Load environment variables and NLTK data
+load_dotenv()
+nltk.download('punkt', quiet=True)
+nltk.download('punkt_tab', quiet=True)
+
+# -----------------------------
 # Page Configuration
+# -----------------------------
 st.set_page_config(
-    page_title="DocuVerse AI - Revolutionary PDF Assistant",
-    page_icon="",
+    page_title="DocuVerse AI - Revolutionary Document Assistant",
+    page_icon="🌌",
     layout="wide"
 )
 
+# Debugging flags
+SHOW_KEY_BANNERS = False
+DEBUG_API_ERRORS = False  # Suppress error messages in production
+
+# -----------------------------
+# Styling
+# -----------------------------
 def load_revolutionary_css():
-    """Load the most stunning CSS ever created"""
-    st.markdown("""
+    """Load custom CSS for the Streamlit app."""
+    css = """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@300;400;700;900&family=Rajdhani:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap');
-
-    /* Global Styles */
     .stApp {
         background: linear-gradient(135deg, #0F0C29 0%, #24243e 30%, #302B63 70%, #0F0C29 100%);
         background-attachment: fixed;
         color: #E2E8F0;
         font-family: 'Rajdhani', sans-serif;
     }
-
-    /* Hide Streamlit Elements */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     .stDeployButton {display: none;}
-
-    /* Main Title */
     .main-title {
         font-family: 'Orbitron', monospace;
-        font-size: 4.5rem;
+        font-size: 4.2rem;
         font-weight: 900;
         background: linear-gradient(45deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FFEAA7, #FF6B6B);
         background-size: 400% 400%;
@@ -53,591 +76,125 @@ def load_revolutionary_css():
         background-clip: text;
         animation: gradientFlow 4s ease-in-out infinite;
         text-align: center;
-        margin: 2rem 0;
-        letter-spacing: 4px;
+        margin: 1.7rem 0 0.4rem 0;
+        letter-spacing: 3px;
         text-shadow: 0 0 50px rgba(255, 107, 107, 0.3);
         position: relative;
     }
-
     .main-title::after {
         content: '';
         position: absolute;
-        bottom: -10px;
+        bottom: -8px;
         left: 50%;
         transform: translateX(-50%);
-        width: 200px;
+        width: 180px;
         height: 3px;
         background: linear-gradient(90deg, transparent, #4ECDC4, transparent);
         animation: lineGlow 2s ease-in-out infinite;
     }
-
     @keyframes gradientFlow {
         0% { background-position: 0% 50%; }
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
     }
-
     @keyframes lineGlow {
-        0%, 100% { opacity: 0.3; width: 100px; }
-        50% { opacity: 1; width: 300px; }
+        0%, 100% { opacity: 0.3; width: 90px; }
+        50% { opacity: 1; width: 260px; }
     }
-
     .subtitle {
         font-family: 'Rajdhani', sans-serif;
-        font-size: 1.6rem;
+        font-size: 1.4rem;
         font-weight: 300;
         color: #A8A8B3;
         text-align: center;
-        margin-bottom: 3rem;
+        margin-bottom: 2rem;
         text-transform: uppercase;
         letter-spacing: 3px;
     }
-
-    /* Navigation Bar */
-    .nav-container {
-        display: flex;
-        justify-content: center;
-        margin: 3rem 0;
-        padding: 0 2rem;
-    }
-
-    .nav-bar {
-        display: flex;
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
-        backdrop-filter: blur(20px);
-        border-radius: 25px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        padding: 8px;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        position: relative;
-        overflow: hidden;
-    }
-
-    .nav-bar::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(78, 205, 196, 0.2), transparent);
-        animation: navScan 3s linear infinite;
-    }
-
-    @keyframes navScan {
-        0% { left: -100%; }
-        100% { left: 100%; }
-    }
-
-    .nav-item {
-        position: relative;
-        margin: 0 4px;
-        border-radius: 20px;
-        overflow: hidden;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .nav-button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 18px 32px;
-        background: transparent;
-        border: none;
-        color: #A8A8B3;
-        font-family: 'Rajdhani', sans-serif;
-        font-size: 1.1rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        cursor: pointer;
-        transition: all 0.4s ease;
-        position: relative;
-        min-width: 180px;
-        border-radius: 20px;
-    }
-
-    .nav-button::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.05) 50%, transparent 70%);
-        transform: translateX(-100%) skew(-10deg);
-        transition: transform 0.6s;
-    }
-
-    .nav-button:hover::before {
-        transform: translateX(100%) skew(-10deg);
-    }
-
-    .nav-button .icon {
-        font-size: 1.4rem;
-        margin-right: 12px;
-        transition: all 0.3s ease;
-    }
-
-    .nav-button:hover {
-        transform: translateY(-3px);
-        color: white;
-    }
-
-    .nav-button:hover .icon {
-        transform: scale(1.2) rotateZ(5deg);
-    }
-
-    /* Tab Active States */
-    .upload-active .nav-button {
-        background: linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%);
-        color: white;
-        box-shadow: 0 15px 35px rgba(255, 107, 107, 0.4);
-    }
-
-    .analysis-active .nav-button {
-        background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%);
-        color: white;
-        box-shadow: 0 15px 35px rgba(78, 205, 196, 0.4);
-    }
-
-    .summary-active .nav-button {
-        background: linear-gradient(135deg, #FFEAA7 0%, #FFD93D 100%);
-        color: #2D3748;
-        box-shadow: 0 15px 35px rgba(255, 234, 167, 0.4);
-    }
-
-    .qa-active .nav-button {
-        background: linear-gradient(135deg, #96CEB4 0%, #ABEBC6 100%);
-        color: #2D3748;
-        box-shadow: 0 15px 35px rgba(150, 206, 180, 0.4);
-    }
-
-    /* Content Sections */
     .content-section {
         background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
         backdrop-filter: blur(15px);
-        border-radius: 25px;
+        border-radius: 22px;
         border: 1px solid rgba(255, 255, 255, 0.1);
-        padding: 3rem;
-        margin: 2rem 0;
+        padding: 2rem;
+        margin: 1.2rem 0;
         box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
         position: relative;
         overflow: hidden;
     }
-
-    .content-section::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(90deg, transparent, #4ECDC4, transparent);
-        animation: topGlow 2s ease-in-out infinite;
-    }
-
-    @keyframes topGlow {
-        0%, 100% { opacity: 0.3; }
-        50% { opacity: 1; }
-    }
-
     .section-title {
         font-family: 'Orbitron', monospace;
-        font-size: 2.5rem;
+        font-size: 2.2rem;
         font-weight: 700;
         background: linear-gradient(135deg, #4ECDC4, #45B7D1);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-        margin-bottom: 2rem;
+        margin-bottom: 1.2rem;
         text-align: center;
         letter-spacing: 2px;
     }
-
-    /* Cyber Cards */
     .cyber-card {
         background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
         backdrop-filter: blur(12px);
-        border-radius: 20px;
+        border-radius: 16px;
         border: 1px solid rgba(255, 255, 255, 0.15);
-        padding: 2rem;
-        margin: 1.5rem 0;
+        padding: 1rem 1.2rem;
+        margin: 0.8rem 0;
         box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        transition: all 0.4s ease;
+        transition: all 0.3s ease;
         position: relative;
         overflow: hidden;
     }
-
-    .cyber-card::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(78, 205, 196, 0.1), transparent);
-        transition: left 0.8s ease;
+    .cyber-card:hover { transform: translateY(-4px) scale(1.005); }
+    .cyber-text {
+        background: linear-gradient(135deg, #4ECDC4, #45B7D1);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
-
-    .cyber-card:hover::after {
-        left: 100%;
-    }
-
-    .cyber-card:hover {
-        transform: translateY(-8px) scale(1.02);
-        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(78, 205, 196, 0.2);
-    }
-
-    /* Metrics */
-    .metrics-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1.5rem;
-        margin: 2rem 0;
-    }
-
     .metric-card {
         background: linear-gradient(135deg, rgba(0, 255, 127, 0.08), rgba(0, 191, 255, 0.08));
         border: 1px solid rgba(0, 255, 127, 0.2);
-        border-radius: 20px;
-        padding: 2rem;
+        border-radius: 16px;
+        padding: 1rem;
         text-align: center;
         backdrop-filter: blur(10px);
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
     }
-
-    .metric-card::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        background: repeating-linear-gradient(
-            0deg,
-            transparent,
-            transparent 2px,
-            rgba(0, 255, 127, 0.03) 2px,
-            rgba(0, 255, 127, 0.03) 4px
-        );
-        animation: scan 3s linear infinite;
-    }
-
-    @keyframes scan {
-        0% { transform: translateY(0); }
-        100% { transform: translateY(20px); }
-    }
-
-    .metric-card:hover {
-        transform: scale(1.05);
-        border-color: rgba(0, 255, 127, 0.4);
-        box-shadow: 0 20px 40px rgba(0, 255, 127, 0.2);
-    }
-
     .metric-value {
         font-family: 'Orbitron', monospace;
-        font-size: 2.5rem;
+        font-size: 1.8rem;
         font-weight: 700;
         color: #00FF7F;
         text-shadow: 0 0 20px rgba(0, 255, 127, 0.5);
-        margin-bottom: 0.5rem;
-        position: relative;
-        z-index: 1;
+        margin-bottom: 0.3rem;
     }
-
     .metric-label {
         color: #A8A8B3;
         text-transform: uppercase;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         font-weight: 600;
         letter-spacing: 1px;
-        position: relative;
-        z-index: 1;
     }
-
-    /* Buttons */
-    .cyber-button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-        border-radius: 15px;
-        padding: 1rem 2.5rem;
-        color: white;
-        font-family: 'Rajdhani', sans-serif;
-        font-size: 1.1rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-        box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    }
-
-    .cyber-button::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-        transition: left 0.5s;
-    }
-
-    .cyber-button:hover::before {
-        left: 100%;
-    }
-
-    .cyber-button:hover {
-        transform: translateY(-3px) scale(1.05);
-        box-shadow: 0 20px 45px rgba(102, 126, 234, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    }
-
-    /* Keyword tags */
     .keyword-tag {
         background: linear-gradient(135deg, #667eea, #764ba2);
         color: white;
-        padding: 0.4rem 1rem;
-        margin: 0.3rem;
-        border-radius: 20px;
+        padding: 0.35rem 0.9rem;
+        margin: 0.25rem;
+        border-radius: 18px;
         display: inline-block;
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         font-weight: 500;
-        transition: all 0.3s ease;
         box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
     }
-
-    .keyword-tag:hover {
-        transform: translateY(-2px) scale(1.1);
-        box-shadow: 0 10px 25px rgba(102, 126, 234, 0.5);
-    }
-
-    @keyframes pulse {
-        0%, 100% { opacity: 0.8; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.05); }
-    }
-
-    /* Footer Styles */
-    .footer-container {
-        text-align: center;
-        padding: 4rem 2rem;
-        background: linear-gradient(135deg, rgba(15, 12, 41, 0.9), rgba(48, 43, 99, 0.9));
-        border-radius: 30px;
-        margin: 3rem 0;
-        position: relative;
-        overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .footer-container::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: linear-gradient(90deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FFEAA7);
-        animation: gradientFlow 4s ease-in-out infinite;
-    }
-
-    .footer-title {
-        font-family: 'Orbitron', monospace;
-        color: #00FF7F;
-        margin-bottom: 1.5rem;
-        text-shadow: 0 0 20px rgba(0, 255, 127, 0.5);
-        font-size: 2.5rem;
-        font-weight: 700;
-    }
-
-    .footer-subtitle {
-        color: #A8A8B3;
-        font-family: 'Rajdhani', sans-serif;
-        font-size: 1.3rem;
-        margin-bottom: 2rem;
-        font-weight: 300;
-    }
-
-    .footer-tags {
-        display: flex;
-        justify-content: center;
-        gap: 2rem;
-        flex-wrap: wrap;
-        margin: 2rem 0;
-    }
-
-    .footer-tag {
-        padding: 1rem 2rem;
-        border-radius: 25px;
-        font-weight: 600;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-
-    .footer-tag:hover {
-        transform: translateY(-5px) scale(1.1);
-    }
-
-    .footer-tag-1 {
-        background: linear-gradient(135deg, #FF6B6B, #FF8E8E);
-        animation: pulse 2s infinite;
-    }
-
-    .footer-tag-2 {
-        background: linear-gradient(135deg, #4ECDC4, #44A08D);
-        animation: pulse 2s infinite 0.5s;
-    }
-
-    .footer-tag-3 {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        animation: pulse 2s infinite 1s;
-    }
-
-    .footer-tag-4 {
-        background: linear-gradient(135deg, #96CEB4, #ABEBC6);
-        animation: pulse 2s infinite 1.5s;
-    }
-
-    .footer-copyright {
-        color: #6B7280;
-        margin-top: 2rem;
-        font-size: 0.9rem;
-        line-height: 1.6;
-    }
-
-    /* Text and Typography */
-    h1, h2, h3, h4 {
-        color: #4ECDC4;
-        font-family: 'Orbitron', monospace;
-    }
-
-    .cyber-text {
-        color: #00FF7F;
-        text-shadow: 0 0 10px rgba(0, 255, 127, 0.3);
-        font-family: 'Space Mono', monospace;
-    }
-
-    /* Enhanced Sidebar Styles */
-    .css-1d391kg {
-        background: linear-gradient(135deg, rgba(15, 12, 41, 0.95), rgba(48, 43, 99, 0.95));
-        backdrop-filter: blur(20px);
-        border-right: 1px solid rgba(78, 205, 196, 0.2);
-    }
-
-    /* Enhanced Text Area */
-    .stTextArea > div > div > textarea {
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
-        border: 2px solid rgba(78, 205, 196, 0.5);
-        border-radius: 15px;
-        color: #E2E8F0;
-        font-family: 'Rajdhani', sans-serif;
-        font-size: 1.1rem;
-        padding: 1rem;
-        transition: all 0.3s ease;
-        caret-color: #4ECDC4;
-    }
-
-    .stTextArea > div > div > textarea:focus {
-        border-color: #4ECDC4;
-        box-shadow: 0 0 20px rgba(78, 205, 196, 0.4);
-        background: linear-gradient(135deg, rgba(30, 30, 30, 0.9), rgba(50, 50, 50, 0.98));
-    }
-
-    /* Enhanced Radio Buttons */
-    .stRadio > div {
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
-        border-radius: 15px;
-        padding: 1rem;
-        border: 1px solid rgba(78, 205, 196, 0.2);
-    }
-
-    /* Enhanced Download Buttons */
-    .stDownloadButton > button {
-        background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%) !important;
-        border: none !important;
-        border-radius: 15px !important;
-        color: white !important;
-        font-weight: 600 !important;
-        transition: all 0.3s ease !important;
-        box-shadow: 0 10px 25px rgba(78, 205, 196, 0.3) !important;
-    }
-
-    .stDownloadButton > button:hover {
-        transform: translateY(-2px) scale(1.05) !important;
-        box-shadow: 0 15px 35px rgba(78, 205, 196, 0.5) !important;
-    }
-
-    /* Enhanced Code Blocks */
-    .stCode {
-        background: linear-gradient(135deg, rgba(0, 255, 127, 0.05), rgba(78, 205, 196, 0.05));
-        border: 1px solid rgba(0, 255, 127, 0.2);
-        border-radius: 10px;
-        padding: 1rem;
-    }
-
-    /* Responsive Design */
-    @media (max-width: 768px) {
-        .main-title {
-            font-size: 3rem;
-        }
-
-        .nav-bar {
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .nav-button {
-            min-width: auto;
-            width: 100%;
-        }
-
-        .content-section {
-            padding: 2rem 1rem;
-        }
-
-        .metrics-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-
-        .footer-tags {
-            flex-direction: column;
-            gap: 1rem;
-        }
-    }
-
-    @media (max-width: 480px) {
-        .metrics-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    /* Progress bars and spinners */
-    .stProgress > div > div {
-        background: linear-gradient(90deg, #667eea, #764ba2);
-        border-radius: 10px;
-    }
-
-    /* File uploader styling */
-    .uploadedFile {
-        background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(78, 205, 196, 0.1));
-        border: 2px dashed rgba(255, 107, 107, 0.3);
-        border-radius: 20px;
-        padding: 2rem;
-    }
-
-    /* Streamlit button override */
     .stButton > button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
         border: none !important;
-        border-radius: 15px !important;
-        padding: 1rem 2.5rem !important;
+        border-radius: 14px !important;
+        padding: 0.8rem 1.6rem !important;
         color: white !important;
         font-family: 'Rajdhani', sans-serif !important;
-        font-size: 1.1rem !important;
+        font-size: 1.02rem !important;
         font-weight: 600 !important;
         text-transform: uppercase !important;
         letter-spacing: 1px !important;
@@ -645,873 +202,893 @@ def load_revolutionary_css():
         transition: all 0.3s ease !important;
         box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4) !important;
     }
-
-    .stButton > button:hover {
-        transform: translateY(-3px) scale(1.05) !important;
-        box-shadow: 0 20px 45px rgba(102, 126, 234, 0.6) !important;
+    .stButton > button:hover { transform: translateY(-3px) scale(1.03) !important; }
+    .stDownloadButton > button {
+        background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%) !important;
+        border: none !important;
+        border-radius: 14px !important;
+        color: white !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 10px 25px rgba(78, 205, 196, 0.3) !important;
+    }
+    .stDownloadButton > button:hover { transform: translateY(-2px) scale(1.05) !important; }
+    .fulltext-container {
+        border: 1px solid rgba(255,255,255,0.15);
+        background: rgba(255,255,255,0.02);
+        border-radius: 14px;
+        padding: 1rem;
+        height: 520px;
+        overflow: auto;
+        white-space: pre-wrap;
+        line-height: 1.65;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.98rem;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(css, unsafe_allow_html=True)
 
-class PDFProcessor:
-    """Advanced PDF processing with quantum algorithms"""
+# -----------------------------
+# Secrets/Keys
+# -----------------------------
+def get_secret(key: str, default: str = "") -> str:
+    """Retrieve secret from environment variables or Streamlit secrets."""
+    return os.environ.get(key, st.secrets.get(key, default))
 
-    def extract_text(self, pdf_file):
-        try:
-            pdf_reader = PyPDF2.PdfReader(pdf_file)
-            text = ""
+HF_API_KEY = get_secret("HF_API_KEY", "")
+COHERE_API_KEY = get_secret("COHERE_API_KEY", "")
 
-            for page_num, page in enumerate(pdf_reader.pages[:15]):
-                page_text = page.extract_text()
-                if page_text:
+# Authenticate Hugging Face silently
+if HF_API_KEY:
+    try:
+        hf_login(token=HF_API_KEY)
+    except Exception:
+        HF_API_KEY = ""
+
+# -----------------------------
+# Cached Resources
+# -----------------------------
+@st.cache_resource
+def get_hf_tokenizer():
+    """Load Hugging Face tokenizer."""
+    try:
+        return AutoTokenizer.from_pretrained("facebook/bart-large-cnn", token=HF_API_KEY if HF_API_KEY else None)
+    except Exception:
+        return None
+
+@st.cache_resource
+def get_st_model():
+    """Load SentenceTransformer model."""
+    try:
+        return SentenceTransformer("all-MiniLM-L6-v2")
+    except Exception:
+        return None
+
+@st.cache_resource
+def get_hf_summarizer():
+    """Load Hugging Face summarization pipeline."""
+    try:
+        return pipeline("summarization", model="facebook/bart-large-cnn", device=-1, token=HF_API_KEY if HF_API_KEY else None)
+    except Exception:
+        return None
+
+@st.cache_resource
+def get_hf_qa():
+    """Load Hugging Face question-answering pipeline."""
+    try:
+        return pipeline("question-answering", model="deepset/roberta-base-squad2", device=-1, token=HF_API_KEY if HF_API_KEY else None)
+    except Exception:
+        return None
+
+hf_tokenizer = get_hf_tokenizer()
+
+# -----------------------------
+# Utilities
+# -----------------------------
+def split_sentences(text: str) -> List[str]:
+    """Split text into sentences."""
+    return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text.strip()) if s.strip()]
+
+def clean_text(text: str) -> str:
+    if not text or not isinstance(text, str): return ""
+    text = re.sub(r'```math\n\d+```|```math\n\d+,\s*\d+```|```math\n\d+–\d+```', '', text)
+    text = re.sub(r'\b[A-Z][a-z]+,\s*[A-Z]\.\s*', '', text)
+    text = re.sub(r'\b[A-Z]\.\.\s*', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+def create_download_file(content: str, file_type: str = "txt") -> bytes:
+    """Create a downloadable file in TXT or PDF format."""
+    try:
+        if file_type == "pdf":
+            if not importlib.util.find_spec("reportlab"):
+                return content.encode('utf-8')
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.platypus import SimpleDocTemplate, Paragraph
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter)
+            styles = getSampleStyleSheet()
+            flowables = [Paragraph(line.replace('\n', '<br/>'), styles['Normal']) for line in content.split('\n') if line.strip()]
+            doc.build(flowables)
+            buffer.seek(0)
+            return buffer.getvalue()
+        return content.encode('utf-8')
+    except Exception:
+        return content.encode('utf-8')
+
+def auto_select_summary_mode(text: str) -> str:
+    """Determine summary mode based on text length."""
+    wc = len(re.findall(r"\b[\w'-]+\b", text))
+    return 'extractive' if wc <= 400 else 'hybrid'
+
+@st.cache_data
+def build_qa_context(text: str, question: str, chunk_size: int = 5, max_chars: int = 4000) -> str:
+    """Build context for Q&A by selecting relevant sentences."""
+    try:
+        model = get_st_model()
+        if not model:
+            return clean_text(text)[:max_chars]
+        sentences = [s for s in split_sentences(text) if len(s) > 10][:1500]
+        if not sentences:
+            return clean_text(text)[:max_chars]
+        q_emb = model.encode(question, convert_to_tensor=True, normalize_embeddings=True)
+        s_emb = model.encode(sentences, convert_to_tensor=True, normalize_embeddings=True)
+        sims = util.cos_sim(q_emb, s_emb)[0].tolist()
+        ranked = [s for _, s in sorted(zip(sims, sentences), key=lambda x: x[0], reverse=True)]
+        ctx = ""
+        for s in ranked[:chunk_size * 4]:
+            if len(ctx) + len(s) + 1 > max_chars:
+                break
+            ctx += ("\n" if ctx else "") + s
+        return clean_text(ctx) if ctx else clean_text(text)[:max_chars]
+    except Exception:
+        return clean_text(text)[:max_chars]
+
+def is_bad_answer(answer: str, question: str) -> bool:
+    """Check if an answer is invalid or too similar to the question."""
+    a = (answer or "").strip().lower()
+    q = (question or "").strip().lower()
+    if not a or len(a) < 3 or a == q or SequenceMatcher(None, a, q).ratio() > 0.85:
+        return True
+    return False
+
+def pick_best_result(results: List[dict], question: str, desired_sentences: int = 3) -> dict:
+    """Select the best result based on confidence and sentence count."""
+    cleaned = [r for r in results if r and r.get('answer') and not is_bad_answer(r['answer'], question)]
+    if cleaned:
+        for r in cleaned:
+            sentence_count = len(split_sentences(r['answer']))
+            length_bonus = min(20, len(r['answer']) / 50) if question else 0
+            sentence_diff = abs(sentence_count - desired_sentences) if not question else 0
+            cohere_bonus = 20 if not question and r.get('method', '').startswith('cohere') else 0
+            r['adjusted_confidence'] = r.get('confidence', 0) + length_bonus - (sentence_diff * 10) + cohere_bonus
+        best = max(cleaned, key=lambda x: x.get('adjusted_confidence', 0))
+        return best
+    return {'answer': 'Unable to generate answer.', 'confidence': 0, 'method': 'none'}
+
+# -----------------------------
+# Provider Wrappers
+# -----------------------------
+@st.cache_data(show_spinner=False)
+def cached_query_hf_local(question: str, context: str, sentences: int = 3):
+    """Query local Hugging Face model for summarization or Q&A."""
+    context = clean_text(context or "").strip()
+    if not context:
+        return {"answer": "", "confidence": 0, "method": "hf_local_none"}
+    try:
+        if not hf_tokenizer:
+            return None
+        tokens = hf_tokenizer(context, truncation=True, max_length=1000, return_tensors="pt")
+        truncated_context = hf_tokenizer.decode(tokens["input_ids"][0], skip_special_tokens=True)
+        if not question:
+            summarizer = get_hf_summarizer()
+            if not summarizer:
+                return None
+            max_length = max(50, sentences * 20)
+            min_length = max(20, sentences * 10)
+            result = summarizer(truncated_context, max_length=max_length, min_length=min_length, do_sample=False)
+            return {'answer': clean_text(result[0].get('summary_text', '')).strip(), 'confidence': 85, 'method': 'hf_local_summarization'}
+        qa_model = get_hf_qa()
+        if not qa_model:
+            return None
+        result = qa_model(question=question, context=truncated_context)
+        return {'answer': clean_text(result.get('answer', '')).strip(), 'confidence': result.get('score', 0) * 100, 'method': 'hf_local_qa'}
+    except Exception:
+        return None
+
+@st.cache_data(show_spinner=False)
+def query_hf_api(question: str, context: str):
+    """Query Hugging Face API for summarization or Q&A."""
+    if not HF_API_KEY:
+        return None
+    context = clean_text(context or "").strip()
+    if not context:
+        return None
+    try:
+        if not hf_tokenizer:
+            return None
+        tokens = hf_tokenizer(context, truncation=True, max_length=1000, return_tensors="pt")
+        truncated_context = hf_tokenizer.decode(tokens["input_ids"][0], skip_special_tokens=True)
+        headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+        if question:
+            url = "https://api-inference.huggingface.co/models/deepset/roberta-base-squad2"
+            payload = {"inputs": {"question": question, "context": truncated_context}}
+        else:
+            url = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
+            payload = {"inputs": truncated_context, "parameters": {"max_length": 150, "min_length": 30}}
+        r = requests.post(url, headers=headers, json=payload, timeout=60)
+        r.raise_for_status()
+        result = r.json()
+        if question:
+            if isinstance(result, dict) and 'answer' in result:
+                return {'answer': clean_text(result['answer']).strip(), 'confidence': result.get('score', 0.9) * 100, 'method': 'hf_api_qa'}
+            if isinstance(result, list) and result:
+                return {'answer': clean_text(result[0].get('answer', '')).strip(), 'confidence': result[0].get('score', 0.9) * 100, 'method': 'hf_api_qa'}
+        else:
+            if isinstance(result, list) and result:
+                return {'answer': clean_text(result[0].get('summary_text', '')).strip(), 'confidence': 90, 'method': 'hf_api_sum'}
+            if isinstance(result, dict) and 'summary_text' in result:
+                return {'answer': clean_text(result.get('summary_text', '')).strip(), 'confidence': 90, 'method': 'hf_api_sum'}
+        return None
+    except Exception:
+        return None
+
+@st.cache_data(show_spinner=False)
+def cached_query_cohere(question: str, context: str, sentences: int = 3, _cache_key: str = ""):
+    """Query Cohere API for summarization or Q&A with unique cache key."""
+    if not COHERE_API_KEY:
+        return None
+    context = clean_text(context or "").strip()
+    if not context or len(context) < 10:
+        return None
+    try:
+        co = cohere.Client(COHERE_API_KEY)
+        if not hf_tokenizer:
+            return None
+        tokens = hf_tokenizer(context, truncation=True, max_length=4000, return_tensors="pt")
+        truncated_context = hf_tokenizer.decode(tokens["input_ids"][0], skip_special_tokens=True)
+        if len(truncated_context.strip()) < 10:
+            return None
+        for attempt in range(5):
+            try:
+                if question:
+                    response = co.chat(
+                        message=f"Based on the following text, provide a concise answer to the user's question.\n\nText:\n\"\"\"\n{truncated_context}\n\"\"\"\n\nQuestion: {question}",
+                        model="command-r-plus-08-2024",
+                        temperature=0.2,
+                        max_tokens=500
+                    )
+                    answer = clean_text(response.text).strip()
+                    if not answer:
+                        return None
+                    return {'answer': answer, 'confidence': 90, 'method': 'cohere_qa'}
+                response = co.chat(
+                    message=f"Summarize the following text in exactly {sentences} sentences.\n\nText:\n\"\"\"\n{truncated_context}\n\"\"\"",
+                    model="command-r-plus-08-2024",
+                    temperature=0.3,
+                    max_tokens=1000
+                )
+                answer = clean_text(response.text).strip()
+                if not answer:
+                    return None
+                sentences_list = split_sentences(answer)
+                if len(sentences_list) > sentences:
+                    answer = ' '.join(sentences_list[:sentences])
+                    if not answer.endswith('.'):
+                        answer += '.'
+                return {'answer': answer, 'confidence': 90, 'method': 'cohere_summarization'}
+            except cohere.errors.CohereAPIError as e:
+                if e.status_code == 429 and attempt < 4:
+                    time.sleep(2 ** attempt)
+                    continue
+                return None
+    except Exception:
+        return None
+
+# -----------------------------
+# Document Processing
+# -----------------------------
+class DocProcessor:
+    """Handle document extraction for various file types."""
+    def extract_text_from_file(self, uploaded_file, force_ocr: bool = False, default_max_pages: int = 30) -> str:
+        if not uploaded_file:
+            return "No file uploaded."
+        file_name = uploaded_file.name.lower()
+        if len(uploaded_file.getvalue()) > 10 * 1024 * 1024:
+            return "File too large (max 10MB)."
+        if file_name.endswith('.pdf'):
+            try:
+                pdf_reader = PdfReader(uploaded_file)
+                text = ""
+                for page in pdf_reader.pages[:default_max_pages]:
+                    page_text = page.extract_text() or ""
                     text += page_text + "\n"
+                text = clean_text(text)
+                if len(pdf_reader.pages) > default_max_pages:
+                    st.caption(f"Processed first {default_max_pages} PDF pages (auto limit).")
+                return text or "No text extracted from PDF."
+            except Exception:
+                return "No text extracted."
+        if file_name.endswith('.txt'):
+            try:
+                return clean_text(uploaded_file.getvalue().decode('utf-8', errors='ignore').strip())
+            except Exception:
+                return "Text extraction error."
+        if file_name.endswith(('.doc', '.docx')):
+            try:
+                doc = Document(uploaded_file)
+                text = '\n'.join(p.text for p in doc.paragraphs)
+                return clean_text(text)
+            except Exception:
+                return "DOC/DOCX extraction error."
+        if file_name.endswith(('.ppt', '.pptx')):
+            try:
+                prs = Presentation(uploaded_file)
+                parts = []
+                for slide in prs.slides:
+                    for shape in slide.shapes:
+                        if hasattr(shape, "has_text_frame") and shape.has_text_frame and shape.text_frame:
+                            parts.append(shape.text_frame.text)
+                text = '\n'.join(parts)
+                return clean_text(text)
+            except Exception:
+                return "PPT/PPTX extraction error."
+        return "Unsupported file type."
 
-            # Quantum text cleaning
-            text = re.sub(r'\s+', ' ', text)
-            text = text.strip()
-
-            return text
-        except Exception as e:
-            return f"Quantum extraction error: {str(e)}"
-
-    def get_advanced_stats(self, text):
-        words = text.split()
-        sentences = [s.strip() for s in text.split('.') if s.strip()]
+    def get_advanced_stats(self, text: str):
+        """Compute advanced text statistics."""
+        if not text or not isinstance(text, str):
+            return {
+                'words': 0, 'sentences': 0, 'paragraphs': 0,
+                'characters': 0, 'complexity': 0.0, 'unique_words': 0,
+                'reading_time': 0
+            }
+        words = re.findall(r"\b[\w'-]+\b", text)
+        sentences = split_sentences(text)
         paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
-
-        # Advanced metrics
         long_words = [w for w in words if len(w) > 6]
         complexity = len(long_words) / max(len(words), 1) * 100
-
         return {
             'words': len(words),
             'sentences': len(sentences),
             'paragraphs': len(paragraphs),
             'characters': len(text),
             'complexity': round(complexity, 1),
-            'unique_words': len(set(word.lower() for word in words)),
+            'unique_words': len(set(w.lower() for w in words)),
             'reading_time': max(1, len(words) // 200)
         }
 
+# -----------------------------
+# Summarization Engine
+# -----------------------------
 class QuantumSummarizer:
-    """Revolutionary quantum-inspired summarization"""
-
+    """Summarization engine with extractive, abstractive-like, and hybrid modes."""
     def __init__(self):
-        self.styles = {
-            'executive': 'Executive Summary',
-            'academic': 'Academic Abstract',
-            'bullet': 'Key Points',
-            'narrative': 'Story Format',
-            'technical': 'Technical Brief'
-        }
+        self.summarizer = LsaSummarizer()
 
-        # Three types of summarization
-        self.summary_types = {
-            'extractive': 'Extractive Summary',
-            'abstractive': 'Abstractive Summary', 
-            'hybrid': 'Hybrid Summary'
-        }
+    def sumy_extractive_summary(self, text: str, sentences: int = 3) -> dict:
+        """Generate extractive summary using Sumy LSA."""
+        try:
+            parser = PlaintextParser.from_string(text, SumyTokenizer("english"))
+            summary_sentences = self.summarizer(parser.document, sentences)
+            summary = '. '.join(str(s) for s in summary_sentences)
+            if summary and not summary.endswith('.'):
+                summary += '.'
+            return {'summary': clean_text(summary) or 'No summary.', 'confidence': 80, 'method': 'sumy_lsa'}
+        except Exception:
+            return {'summary': 'Summarization failed.', 'confidence': 0, 'method': 'sumy_error'}
 
-    def quantum_summarize(self, text, style='executive', sentences=3, summary_type='extractive'):
-        if not text:
-            return {'summary': 'No quantum data to process', 'confidence': 0}
-
-        # Quantum sentence extraction
-        raw_sentences = [s.strip() for s in text.split('.') if len(s.strip()) > 15]
-
-        if len(raw_sentences) <= sentences:
-            return {
-                'summary': text,
-                'confidence': 100,
-                'method': 'quantum_full',
-                'style': self.styles.get(style),
-                'type': summary_type
-            }
-
-        if summary_type == 'extractive':
-            return self._extractive_summary(text, raw_sentences, sentences, style)
-        elif summary_type == 'abstractive':
-            return self._abstractive_summary(text, raw_sentences, sentences, style)
-        elif summary_type == 'hybrid':
-            return self._hybrid_summary(text, raw_sentences, sentences, style)
-        else:
-            return self._extractive_summary(text, raw_sentences, sentences, style)
-
-    def _extractive_summary(self, text, raw_sentences, sentences, style):
-        """Extractive summarization - selects most important sentences"""
-        # Quantum scoring algorithm
-        scored = []
-        for i, sentence in enumerate(raw_sentences):
-            score = self._quantum_score(sentence, i, len(raw_sentences), text)
-            scored.append((score, sentence, i))
-
-        # Apply quantum style weights
-        styled = self._apply_quantum_weights(scored, style)
-
-        # Quantum selection
-        top = sorted(styled, reverse=True)[:sentences]
-        top.sort(key=lambda x: x[2])  # Restore quantum order
-
-        summary = '. '.join([s[1] for s in top]) + '.'
-        confidence = min(100, sum(s[0] for s in top) / len(top) * 100)
-
-        return {
-            'summary': summary,
-            'confidence': round(confidence, 1),
-            'method': f'extractive_{style}',
-            'style': self.styles.get(style, style),
-            'type': 'extractive'
-        }
-
-    def _abstractive_summary(self, text, raw_sentences, sentences, style):
-        """Abstractive summarization - generates new content based on key concepts"""
-        # Extract key concepts and phrases
+    def abstractive_like(self, text: str, sentences: int = 3) -> dict:
+        """Generate abstractive-like summary by selecting and modifying key sentences."""
+        raw_sentences = [s.strip() for s in split_sentences(text) if len(s.strip()) > 15]
         keywords = self._extract_key_concepts(text)
-        
-        # Find sentences with highest keyword density
-        concept_sentences = []
-        for sentence in raw_sentences:
-            score = self._concept_score(sentence, keywords)
-            concept_sentences.append((score, sentence))
-        
-        # Select top sentences and create abstractive summary
-        top_sentences = sorted(concept_sentences, reverse=True)[:max(2, sentences//2)]
-        
-        # Generate abstractive content
-        summary_parts = []
-        for score, sentence in top_sentences:
-            # Simplify and abstract the sentence
-            abstracted = self._abstract_sentence(sentence, keywords)
-            summary_parts.append(abstracted)
-        
-        summary = '. '.join(summary_parts) + '.'
-        confidence = min(95, sum(score for score, _ in top_sentences) / len(top_sentences) * 100)
+        scored = [(self._concept_score(s, keywords), s) for s in raw_sentences]
+        top = sorted(scored, reverse=True)[:max(2, sentences // 2)]
+        summary = '. '.join([self._abstract_sentence(s, keywords) for _, s in top])
+        if summary and not summary.endswith('.'):
+            summary += '.'
+        conf = min(95, (sum(score for score, _ in top) / max(len(top), 1)) * 100)
+        return {'summary': clean_text(summary) or 'No summary.', 'confidence': round(conf, 1), 'method': 'abstractive_light'}
 
-        return {
-            'summary': summary,
-            'confidence': round(confidence, 1),
-            'method': f'abstractive_{style}',
-            'style': self.styles.get(style, style),
-            'type': 'abstractive'
-        }
+    def hybrid(self, text: str, sentences: int = 6) -> dict:
+        """Combine extractive and abstractive-like summaries."""
+        ex = self.sumy_extractive_summary(text, max(2, sentences // 2))
+        ab = self.abstractive_like(text, max(2, sentences // 2))
+        combined = self._dedupe_sentences(f"{ex['summary']} {ab['summary']}", max_sentences=sentences)
+        conf = (ex['confidence'] + ab['confidence']) / 2
+        return {'summary': clean_text(combined), 'confidence': round(conf, 1), 'method': 'hybrid'}
 
-    def _hybrid_summary(self, text, raw_sentences, sentences, style):
-        """Hybrid summarization - combines extractive and abstractive methods"""
-        # Get extractive summary
-        extractive_result = self._extractive_summary(text, raw_sentences, sentences//2 + 1, style)
-        
-        # Get abstractive summary
-        abstractive_result = self._abstractive_summary(text, raw_sentences, sentences//2 + 1, style)
-        
-        # Combine both approaches
-        combined_summary = f"{extractive_result['summary']} {abstractive_result['summary']}"
-        
-        # Clean up and optimize
-        combined_summary = self._optimize_hybrid_summary(combined_summary)
-        
-        confidence = (extractive_result['confidence'] + abstractive_result['confidence']) / 2
+    def quantum_summarize(self, text: str, sentences: int = 6) -> dict:
+        """Main summarization function with auto-selected mode."""
+        if not text or not isinstance(text, str):
+            return {'summary': 'No text to summarize.', 'confidence': 0, 'method': 'none'}
+        text = clean_text(text)
+        mode = auto_select_summary_mode(text)
+        if mode == 'extractive':
+            return self.sumy_extractive_summary(text, sentences)
+        return self.hybrid(text, sentences)
 
-        return {
-            'summary': combined_summary,
-            'confidence': round(confidence, 1),
-            'method': f'hybrid_{style}',
-            'style': self.styles.get(style, style),
-            'type': 'hybrid'
-        }
-
-    def _extract_key_concepts(self, text):
-        """Extract key concepts from text"""
+    def _extract_key_concepts(self, text: str) -> List[tuple]:
+        """Extract key concepts based on word frequency."""
         words = re.findall(r'\b[a-zA-Z]{4,}\b', text.lower())
-        word_freq = {}
-        for word in words:
-            if word not in {'this', 'that', 'with', 'have', 'will', 'from', 'they', 'been', 'were', 'said'}:
-                word_freq[word] = word_freq.get(word, 0) + 1
-        
-        # Return top concepts
+        stop_words = {'this', 'that', 'with', 'have', 'will', 'from', 'they', 'been', 'were', 'said', 'into', 'your', 'their'}
+        word_freq = {w: words.count(w) for w in set(words) if w not in stop_words}
         return sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:10]
 
-    def _concept_score(self, sentence, keywords):
-        """Score sentence based on concept density"""
-        sentence_words = set(re.findall(r'\b[a-zA-Z]{4,}\b', sentence.lower()))
-        keyword_words = set([word for word, freq in keywords])
-        
-        overlap = len(sentence_words.intersection(keyword_words))
-        return overlap / max(len(sentence_words), 1)
+    def _concept_score(self, sentence: str, keywords: List[tuple]) -> float:
+        """Score a sentence based on keyword overlap."""
+        s_words = set(re.findall(r'\b[a-zA-Z]{4,}\b', sentence.lower()))
+        k_words = set(word for word, _ in keywords)
+        return len(s_words.intersection(k_words)) / max(len(s_words), 1)
 
-    def _abstract_sentence(self, sentence, keywords):
-        """Create abstract version of sentence"""
-        # Simple abstraction - keep key concepts, simplify structure
+    def _abstract_sentence(self, sentence: str, keywords: List[tuple]) -> str:
+        """Modify a sentence to make it more abstractive-like."""
         words = sentence.split()
-        key_concepts = [word for word, freq in keywords[:5]]
-        
-        # Keep sentences that contain key concepts
+        key_concepts = [word for word, _ in keywords[:5]]
         if any(concept in sentence.lower() for concept in key_concepts):
-            # Simplify the sentence
-            simplified = ' '.join(words[:min(15, len(words))])
-            return simplified
+            return ' '.join(words[:min(22, len(words))])
         return sentence
 
-    def _optimize_hybrid_summary(self, summary):
-        """Optimize hybrid summary by removing redundancy"""
-        sentences = [s.strip() for s in summary.split('.') if s.strip()]
-        unique_sentences = []
-        
-        for sentence in sentences:
-            if not any(sentence.lower() in existing.lower() or existing.lower() in sentence.lower() 
-                      for existing in unique_sentences):
-                unique_sentences.append(sentence)
-        
-        return '. '.join(unique_sentences[:5]) + '.'
+    def _dedupe_sentences(self, text: str, max_sentences: int = 6) -> str:
+        """Remove duplicate sentences and limit to max_sentences."""
+        sents = split_sentences(text)
+        unique = []
+        for s in sents:
+            if not any(s.lower() in u.lower() or u.lower() in s.lower() for u in unique):
+                unique.append(s)
+        out = '. '.join(unique[:max_sentences])
+        if out and not out.endswith('.'):
+            out += '.'
+        return out
 
-    def _quantum_score(self, sentence, pos, total, full_text):
-        words = sentence.split()
-
-        # Quantum length optimization
-        length_score = min(1.0, len(words) / 20)
-
-        # Quantum position matrix
-        pos_ratio = pos / max(total - 1, 1)
-        pos_score = 1.0 - abs(pos_ratio - 0.25)  # Quantum preference for early content
-
-        # Quantum frequency analysis
-        freq_score = self._quantum_frequency_analysis(sentence, full_text)
-
-        # Quantum interference pattern
-        return length_score * 0.3 + pos_score * 0.4 + freq_score * 0.3
-
-    def _quantum_frequency_analysis(self, sentence, full_text):
-        sentence_words = set(re.findall(r'\b[a-zA-Z]{4,}\b', sentence.lower()))
-        all_words = re.findall(r'\b[a-zA-Z]{4,}\b', full_text.lower())
-
-        word_freq = {}
-        for word in all_words:
-            word_freq[word] = word_freq.get(word, 0) + 1
-
-        quantum_score = 0
-        for word in sentence_words:
-            if word in word_freq and word_freq[word] > 1:
-                quantum_score += min(word_freq[word] / len(all_words) * 100, 1.0)
-
-        return min(quantum_score / max(len(sentence_words), 1), 1.0)
-
-    def _apply_quantum_weights(self, scored, style):
-        if style == 'bullet':
-            return [(s * 1.5 if len(sent.split()) < 15 else s * 0.8, sent, pos)
-                   for s, sent, pos in scored]
-        elif style == 'executive':
-            return [(s * 1.4 if pos < len(scored) * 0.3 else s, sent, pos)
-                   for s, sent, pos in scored]
-        elif style == 'academic':
-            research_terms = ['study', 'research', 'analysis', 'results', 'findings']
-            return [(s * 1.3 if any(term in sent.lower() for term in research_terms) else s, sent, pos)
-                   for s, sent, pos in scored]
-        return scored
-
+# -----------------------------
+# Heuristic Q&A
+# -----------------------------
 class NeuroQA:
-    """Neural-inspired question answering system"""
-
-    def neural_answer(self, question, document):
+    """Heuristic-based question answering system."""
+    def neural_answer(self, question: str, document: str) -> dict:
+        """Generate an answer using heuristic methods."""
         if not question or not document:
-            return {
-                'answer': 'Neural pathways require both question and document data.',
-                'confidence': 0,
-                'method': 'neural_error'
-            }
-
-        # Neural context discovery
+            return {'answer': '', 'confidence': 0, 'method': 'neural_error'}
+        document = clean_text(document)
         contexts = self._discover_neural_contexts(question, document)
-
         if not contexts:
-            return {
-                'answer': 'Neural networks found no relevant quantum patterns. Try rephrasing your query.',
-                'confidence': 0,
-                'method': 'neural_no_match'
-            }
-
-        # Neural answer synthesis
+            return {'answer': '', 'confidence': 0, 'method': 'neural_no_match'}
         best_context = contexts[0]
-        sentences = [s.strip() for s in best_context['text'].split('.') if s.strip()]
-
-        if not sentences:
-            return {'answer': 'Neural processing incomplete.', 'confidence': 0}
-
-        # Neural sentence matching
+        sentences = [s.strip() for s in split_sentences(best_context['text'])]
         question_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', question.lower()))
-        best_sentence = ""
-        max_neural_score = 0
-
+        scored_sentences = []
         for sentence in sentences:
             sentence_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', sentence.lower()))
-            neural_score = len(question_words.intersection(sentence_words))
-
-            if neural_score > max_neural_score:
-                max_neural_score = neural_score
-                best_sentence = sentence
-
-        if not best_sentence:
-            best_sentence = sentences[0]
-
-        confidence = min(95, best_context['score'] * 100)
-
+            score = len(question_words.intersection(sentence_words))
+            scored_sentences.append((score, sentence))
+        top_sentences = sorted(scored_sentences, key=lambda x: x[0], reverse=True)[:3]
+        answer = '. '.join([s for _, s in top_sentences if s])
+        if answer and not answer.endswith('.'):
+            answer += '.'
+        max_score = sum(score for score, _ in top_sentences) / max(len(top_sentences), 1)
         return {
-            'answer': best_sentence + '.',
-            'confidence': round(confidence, 1),
-            'method': 'neural_synthesis',
-            'neural_pathways': len(contexts)
+            'answer': clean_text(answer).strip(),
+            'confidence': min(92, max_score / max(len(question_words), 1) * 100),
+            'method': 'neural_synthesis'
         }
 
-    def _discover_neural_contexts(self, question, document):
-        sentences = [s.strip() for s in document.split('.') if len(s.strip()) > 10]
+    def _discover_neural_contexts(self, question: str, document: str) -> List[dict]:
+        """Find relevant contexts for the question."""
+        sentences = [s.strip() for s in split_sentences(document) if len(s.strip()) > 10]
         question_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', question.lower()))
-
-        neural_contexts = []
+        contexts = []
         window_size = 3
-
         for i in range(len(sentences) - window_size + 1):
             context = '. '.join(sentences[i:i + window_size])
             context_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', context.lower()))
+            overlap = len(question_words.intersection(context_words))
+            if overlap > 0:
+                score = overlap / max(len(question_words), 1)
+                if score > 0.2:
+                    contexts.append({'text': context, 'score': score})
+        return sorted(contexts, key=lambda x: x['score'], reverse=True)[:3]
 
-            neural_overlap = len(question_words.intersection(context_words))
-            if neural_overlap > 0:
-                neural_score = neural_overlap / max(len(question_words), 1)
-                if neural_score > 0.2:
-                    neural_contexts.append({
-                        'text': context,
-                        'score': neural_score,
-                        'overlap': neural_overlap
-                    })
-
-        return sorted(neural_contexts, key=lambda x: x['score'], reverse=True)[:3]
-
-def extract_quantum_keywords(text, top_k=10):
-    """Extract quantum-enhanced keywords"""
+# -----------------------------
+# Keyword Extraction
+# -----------------------------
+def extract_quantum_keywords(text: str, top_k: int = 10) -> List[tuple]:
+    """Extract top keywords based on frequency."""
+    text = clean_text(text)
     words = re.findall(r'\b[a-zA-Z]{4,}\b', text.lower())
-
-    quantum_stop_words = {
-        'this', 'that', 'with', 'have', 'will', 'from', 'they', 'been',
-        'were', 'said', 'each', 'which', 'their', 'time', 'about',
-        'would', 'there', 'could', 'other', 'after', 'first', 'well',
-        'also', 'make', 'here', 'where', 'much', 'take','were', 'said', 
-        'each', 'which', 'their', 'time', 'about','also', 'make', 'here', 
-        'where', 'much', 'take', 'than', 'only'
+    stop_words = {
+        'this', 'that', 'with', 'have', 'will', 'from', 'they', 'been', 'were', 'said',
+        'each', 'which', 'their', 'time', 'about', 'would', 'there', 'could', 'other',
+        'after', 'first', 'well', 'also', 'make', 'here', 'where', 'much', 'take', 'than', 'only'
     }
+    filtered = [w for w in words if w not in stop_words]
+    freq = {w: filtered.count(w) for w in set(filtered)}
+    return sorted(freq.items(), key=lambda x: x[1], reverse=True)[:top_k]
 
-    quantum_filtered = [w for w in words if w not in quantum_stop_words and len(w) > 3]
-
-    quantum_freq = {}
-    for word in quantum_filtered:
-        quantum_freq[word] = quantum_freq.get(word, 0) + 1
-
-    return sorted(quantum_freq.items(), key=lambda x: x[1], reverse=True)[:top_k]
-
-def create_download_file(content, filename, file_type="txt"):
-    """Create downloadable file content"""
-    if file_type == "txt":
-        return content.encode('utf-8')
-    elif file_type == "pdf":
-        # For PDF, we'll create a simple text-based PDF
-        # This is a simplified version - in production, use reportlab or similar
-        return content.encode('utf-8')
-    return content.encode('utf-8')
-
+# -----------------------------
+# Main App
+# -----------------------------
 def main():
-    """Revolutionary main application with enhanced navigation and proper footer"""
-
-    # Initialize quantum components
-    if 'pdf_processor' not in st.session_state:
-        st.session_state.pdf_processor = PDFProcessor()
+    """Main application function."""
+    # Initialize session state
+    if 'doc_processor' not in st.session_state:
+        st.session_state.doc_processor = DocProcessor()
     if 'quantum_summarizer' not in st.session_state:
         st.session_state.quantum_summarizer = QuantumSummarizer()
     if 'neuro_qa' not in st.session_state:
         st.session_state.neuro_qa = NeuroQA()
     if 'active_page' not in st.session_state:
         st.session_state.active_page = 'upload'
-    # Lazy HF objects referenced only if transformers is available
-    if 'hf_summarizer' not in st.session_state:
-        st.session_state.hf_summarizer = None
-    if 'hf_summarizer_name' not in st.session_state:
-        st.session_state.hf_summarizer_name = 'facebook/bart-large-cnn'
-    if 'hf_qa' not in st.session_state:
-        st.session_state.hf_qa = None
-    if 'hf_qa_name' not in st.session_state:
-        st.session_state.hf_qa_name = 'deepset/roberta-base-squad2'
-
-    # Initialize quantum data
     if 'document_text' not in st.session_state:
         st.session_state.document_text = ""
+    if 'original_file_bytes' not in st.session_state:
+        st.session_state.original_file_bytes = None
+    if 'original_file_name' not in st.session_state:
+        st.session_state.original_file_name = None
+    if 'original_mime' not in st.session_state:
+        st.session_state.original_mime = None
     if 'neural_history' not in st.session_state:
         st.session_state.neural_history = []
+    if 'last_summary' not in st.session_state:
+        st.session_state.last_summary = None
 
-    # Load revolutionary CSS
     load_revolutionary_css()
-
-    
-
-    # Revolutionary Header
     st.markdown('<h1 class="main-title">DOCUVERSE AI</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Revolutionary PDF Intelligence Platform</p>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Revolutionary Document Intelligence Platform</p>', unsafe_allow_html=True)
 
-    # Functional top bar (buttons)
+    # Navigation
     top_cols = st.columns(5)
-    with top_cols[0]:
-        if st.button("Document Upload", key="top_upload"):
-            st.session_state.active_page = 'upload'
-    with top_cols[1]:
-        if st.button("Text Input", key="top_text"):
-            st.session_state.active_page = 'text'
-    with top_cols[2]:
-        if st.button("Analysis", key="top_analysis"):
-            st.session_state.active_page = 'analysis'
-    with top_cols[3]:
-        if st.button("Summary", key="top_summary"):
-            st.session_state.active_page = 'summary'
-    with top_cols[4]:
-        if st.button("Q&A", key="top_qa"):
-            st.session_state.active_page = 'qa'
+    pages = ['upload', 'text', 'analysis', 'summary', 'qa']
+    labels = ["Document Upload", "Text Input", "Analysis", "Summary", "Q&A"]
+    for col, page, label in zip(top_cols, pages, labels):
+        with col:
+            if st.button(label, key=f"top_{page}"):
+                st.session_state.active_page = page
 
+    # Upload Page
     if st.session_state.active_page == 'upload':
-        st.markdown('<div class="content-section">', unsafe_allow_html=True)
-        st.markdown('<h2 class="section-title">Document Upload</h2>', unsafe_allow_html=True)
-
+        st.markdown('<div class="content-section"><h2 class="section-title">Document Upload</h2></div>', unsafe_allow_html=True)
         uploaded_file = st.file_uploader(
-            "DRAG YOUR PDF INTO THE FIELD",
-            type="pdf",
-            key="quantum_uploader",
-            help="Upload PDF documents for processing"
+            "DRAG YOUR DOCUMENT INTO THE FIELD",
+            type=['pdf', 'txt', 'doc', 'docx', 'ppt', 'pptx'],
+            key="quantum_uploader"
         )
 
         if uploaded_file:
-            file_size = len(uploaded_file.getvalue()) / 1024 / 1024
+            st.session_state.original_file_bytes = uploaded_file.getvalue()
+            st.session_state.original_file_name = uploaded_file.name
+            st.session_state.original_mime = uploaded_file.type or "application/octet-stream"
 
+            file_size = len(st.session_state.original_file_bytes) / 1024 / 1024
             st.markdown(f"""
             <div class="cyber-card">
                 <h4 class="cyber-text">File Detected</h4>
-                <p><strong>Filename:</strong> {uploaded_file.name}</p>
+                <p><strong>Filename:</strong> {escape(uploaded_file.name)}</p>
                 <p><strong>Size:</strong> {file_size:.1f} MB</p>
-                <p><strong>Type:</strong> {uploaded_file.type}</p>
+                <p><strong>Type:</strong> {escape(st.session_state.original_mime)}</p>
                 <p><strong>Status:</strong> <span class="cyber-text">Ready for processing</span></p>
             </div>
             """, unsafe_allow_html=True)
 
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                if st.button("Initiate Extraction", key="quantum_extract"):
-                    with st.spinner("Processing..."):
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
+            if st.button("Initiate Extraction", key="quantum_extract"):
+                with st.spinner("Processing..."):
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    status_text.text("Analyzing document structure...")
+                    progress_bar.progress(25); time.sleep(0.2)
+                    status_text.text("Extracting text...")
+                    progress_bar.progress(55); time.sleep(0.2)
+                    status_text.text("Finalizing...")
+                    progress_bar.progress(85)
+                    text = st.session_state.doc_processor.extract_text_from_file(uploaded_file, force_ocr=False)
+                    progress_bar.progress(100); time.sleep(0.1)
+                    status_text.text("Extraction complete!")
 
-                        # Quantum extraction sequence
-                        status_text.text("Analyzing document structure...")
-                        progress_bar.progress(25)
-                        time.sleep(0.8)
+                    if text and not text.startswith(("Unsupported file type", "Text extraction error", "DOC/DOCX extraction error", "PPT/PPTX extraction error", "File too large")):
+                        st.session_state.document_text = text
+                        progress_bar.empty(); status_text.empty()
+                        st.success("✅ Document extraction successful.")
 
-                        status_text.text("Extracting text patterns...")
-                        progress_bar.progress(50)
-                        time.sleep(0.8)
+                        st.markdown("<h4>Full Document (extracted)</h4>", unsafe_allow_html=True)
+                        st.markdown(f'<div class="fulltext-container">{escape(st.session_state.document_text)}</div>', unsafe_allow_html=True)
 
-                        status_text.text("Processing neural pathways...")
-                        progress_bar.progress(75)
-                        time.sleep(0.8)
+                        dl_col1, dl_col2 = st.columns(2)
+                        with dl_col1:
+                            st.download_button(
+                                label="Download Extracted Text (TXT)",
+                                data=st.session_state.document_text.encode('utf-8'),
+                                file_name=f"extracted_text_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                                mime="text/plain",
+                                key="download_extracted_text"
+                            )
+                        with dl_col2:
+                            st.download_button(
+                                label="Download Original File",
+                                data=st.session_state.original_file_bytes,
+                                file_name=st.session_state.original_file_name or "document",
+                                mime=st.session_state.original_mime,
+                                key="download_original_file"
+                            )
+                    else:
+                        st.error(text or "Extraction failed.")
+                        progress_bar.empty(); status_text.empty()
 
-                        # Actual processing
-                        text = st.session_state.pdf_processor.extract_text(uploaded_file)
-                        progress_bar.progress(100)
-                        status_text.text("Extraction complete!")
-
-                        if text and not text.startswith("Quantum extraction error"):
-                            st.session_state.document_text = text
-                            time.sleep(1)
-                            progress_bar.empty()
-                            status_text.empty()
-
-                            st.success("Document extraction successful.")
-
-                            # Show quantum preview
-                            with st.expander("Text Preview", expanded=True):
-                                preview = text[:1500] + "..." if len(text) > 1500 else text
-                                st.markdown(f"""
-                                <div class="cyber-card">
-                                    <div class="cyber-text">{preview}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                        else:
-                            st.error("Extraction failed. Please try another document.")
-                            progress_bar.empty()
-                            status_text.empty()
-
-        # Reset button for this page
-        st.markdown("---")
         if st.button("Reset", key="reset_upload"):
             st.session_state.document_text = ""
+            st.session_state.original_file_bytes = None
+            st.session_state.original_file_name = None
+            st.session_state.original_mime = None
+            st.cache_resource.clear()
+            st.cache_data.clear()
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
 
+    # Text Input Page
     if st.session_state.active_page == 'text':
-        st.markdown('<div class="content-section">', unsafe_allow_html=True)
-        st.markdown('<h2 class="section-title">Text Input</h2>', unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div class="cyber-card">
-            <h4 class="cyber-text">Direct Text Input</h4>
-            <p>Paste your text directly here for immediate processing and summarization.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Text input area (limit to 5000 words)
-        input_text = st.text_area(
-            "Enter your text here:",
-            height=300,
-            placeholder="Paste your document text here for analysis and summarization...",
-            key="text_input_area"
-        )
-        
+        st.markdown('<div class="content-section"><h2 class="section-title">Text Input</h2></div>', unsafe_allow_html=True)
+        input_text = st.text_area("Enter your text here:", height=400, placeholder="Paste your document text here...", key="text_input_area")
         if input_text:
-            words_count = len(input_text.split())
+            words_count = len(re.findall(r"\b[\w'-]+\b", input_text))
             st.caption(f"Word count: {words_count}/5000")
             if words_count > 5000:
                 st.error("Input exceeds 5000-word limit. Please shorten your text.")
-            else:
-                col1, col2, col3 = st.columns([1, 2, 1])
-                with col2:
-                    if st.button("Process Text", key="process_text_btn"):
-                        with st.spinner("Processing text..."):
-                            st.session_state.document_text = input_text
-                            st.success("✅ Text processed successfully!")
-                            # Show preview
-                            with st.expander("Text Preview", expanded=True):
-                                preview = input_text[:1500] + "..." if len(input_text) > 1500 else input_text
-                                st.markdown(f"""
-                                <div class="cyber-card">
-                                    <div class="cyber-text">{preview}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-        
-        st.markdown("---")
+            elif st.button("Process Text", key="process_text_btn"):
+                st.session_state.document_text = clean_text(input_text)
+                st.success("✅ Text processed successfully!")
+                st.markdown("<h4>Full Document (entered)</h4>", unsafe_allow_html=True)
+                st.markdown(f'<div class="fulltext-container">{escape(st.session_state.document_text)}</div>', unsafe_allow_html=True)
+                st.download_button(
+                    label="Download Input Text (TXT)",
+                    data=st.session_state.document_text.encode('utf-8'),
+                    file_name=f"input_text_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    mime="text/plain",
+                    key="download_input_text"
+                )
         if st.button("Reset", key="reset_text"):
             st.session_state.document_text = ""
+            st.cache_resource.clear()
+            st.cache_data.clear()
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
 
+    # Analysis Page
     if st.session_state.active_page == 'analysis':
-        if st.session_state.document_text:
-            st.markdown('<div class="content-section">', unsafe_allow_html=True)
-            st.markdown('<h2 class="section-title">Neural Document Analysis</h2>', unsafe_allow_html=True)
+        if not st.session_state.document_text:
+            st.info("🌌 Please upload or input a document first")
+        else:
+            st.markdown('<div class="content-section"><h2 class="section-title">Document Analysis</h2></div>', unsafe_allow_html=True)
+            stats = st.session_state.doc_processor.get_advanced_stats(st.session_state.document_text)
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                st.markdown(f"""<div class="metric-card"><div class="metric-value">{stats['words']:,}</div><div class="metric-label">Words</div></div>""", unsafe_allow_html=True)
+            with c2:
+                st.markdown(f"""<div class="metric-card"><div class="metric-value">{stats['sentences']:,}</div><div class="metric-label">Sentences</div></div>""", unsafe_allow_html=True)
+            with c3:
+                st.markdown(f"""<div class="metric-card"><div class="metric-value">{stats['complexity']:.1f}%</div><div class="metric-label">Complexity</div></div>""", unsafe_allow_html=True)
+            with c4:
+                st.markdown(f"""<div class="metric-card"><div class="metric-value">{stats['reading_time']}</div><div class="metric-label">Second(s) to read</div></div>""", unsafe_allow_html=True)
 
-            # Quantum metrics
-            stats = st.session_state.pdf_processor.get_advanced_stats(st.session_state.document_text)
-
-            st.markdown('<div class="metrics-grid">', unsafe_allow_html=True)
-
-            col1, col2, col3, col4 = st.columns(4)
-
-            with col1:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{stats['words']:,}</div>
-                    <div class="metric-label">Quantum Words</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            with col2:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{stats['sentences']:,}</div>
-                    <div class="metric-label">Neural Sentences</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            with col3:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{stats['complexity']:.1f}%</div>
-                    <div class="metric-label">Complexity Index</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            with col4:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{stats['reading_time']}</div>
-                    <div class="metric-label">Neural Seconds</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            # Quantum keywords
             st.markdown("### Key Phrases")
             keywords = extract_quantum_keywords(st.session_state.document_text)
+            keyword_html = ''.join(f'<span class="keyword-tag">{escape(word)} ({freq})</span>' for word, freq in keywords)
+            st.markdown(f'<div style="text-align: center; margin: 0.6rem 0 0.2rem 0;">{keyword_html}</div>', unsafe_allow_html=True)
 
-            keyword_html = ""
-            for word, freq in keywords:
-                keyword_html += f'<span class="keyword-tag">{word} ({freq})</span>'
-
-            st.markdown(f'<div style="text-align: center; margin: 2rem 0;">{keyword_html}</div>',
-                       unsafe_allow_html=True)
-
-            st.markdown("---")
             if st.button("Reset", key="reset_analysis"):
                 st.session_state.document_text = ""
+                st.cache_resource.clear()
+                st.cache_data.clear()
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.info("🌌 Please upload and extract a document first")
 
+    # Summary Page
     if st.session_state.active_page == 'summary':
-        if st.session_state.document_text:
-            st.markdown('<div class="content-section">', unsafe_allow_html=True)
-            st.markdown('<h2 class="section-title">Advanced Summarization Engine</h2>', unsafe_allow_html=True)
-
-            # Layout: parameters left (stack first on mobile), content right
+        if not st.session_state.document_text.strip():
+            st.error("🌌 No valid document text to summarize. Please upload or input a document.")
+        else:
+            st.markdown('<div class="content-section"><h2 class="section-title">Summary</h2></div>', unsafe_allow_html=True)
             col_params, col_content = st.columns([1, 2])
 
             with col_params:
-                st.markdown("""
-                <div class="cyber-card">
-                    <h4 class="cyber-text">Parameters</h4>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Place Style and Approach side-by-side
-                p1, p2 = st.columns(2)
-                with p1:
-                    style = st.selectbox(
-                        "Style:",
-                        options=list(st.session_state.quantum_summarizer.styles.keys()),
-                        format_func=lambda x: st.session_state.quantum_summarizer.styles[x],
-                        key="quantum_style"
-                    )
-                with p2:
-                    summary_type = st.selectbox(
-                        "Summarization Approach:",
-                        options=list(st.session_state.quantum_summarizer.summary_types.keys()),
-                        format_func=lambda x: st.session_state.quantum_summarizer.summary_types[x],
-                        key="summary_type_select"
-                    )
-
-                length = st.slider("Length:", 2, 15, 8, key="quantum_length")
+                st.markdown('<div class="cyber-card"><h4 class="cyber-text">Settings</h4></div>', unsafe_allow_html=True)
+                length = st.slider("Summary length (sentences):", 2, 15, 8, key="summary_length")
 
             with col_content:
-                if st.button("Generate Summary", key="quantum_summary_btn"):
+                if st.button("Generate Summary", key="summary_generate"):
                     with st.spinner("Generating summary..."):
-                        result = st.session_state.quantum_summarizer.quantum_summarize(
-                            st.session_state.document_text,
-                            style=style,
-                            sentences=length,
-                            summary_type=summary_type
-                        )
+                        context = clean_text(st.session_state.document_text)
+                        if not context:
+                            st.error("No valid text to summarize after cleaning.")
+                            return
+                        results = []
 
-                    # Store result in session state for download
-                    st.session_state.last_summary = result
+                        try:
+                            qres = st.session_state.quantum_summarizer.quantum_summarize(context, sentences=length)
+                            results.append({'answer': qres['summary'], 'confidence': qres['confidence'], 'method': qres['method']})
+                        except Exception:
+                            results.append({'answer': '', 'confidence': 0, 'method': 'sumy_error'})
 
-                    st.markdown(f"""
-                    <div class="cyber-card">
-                        <h4 class="cyber-text">{st.session_state.quantum_summarizer.summary_types[summary_type]}</h4>
-                        <div style="background: rgba(0, 255, 127, 0.05); padding: 2rem; border-radius: 15px; margin: 1rem 0; border-left: 4px solid #00FF7F;">
-                            <p style="font-size: 1.2rem; line-height: 1.8; color: #E2E8F0;">
-                                {result['summary']}
-                            </p>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 1.5rem;">
-                            <span class="cyber-text">Confidence: {result['confidence']}%</span>
-                            <span class="cyber-text">Method: {result['method']}</span>
-                            <span class="cyber-text">Type: {result['type']}</span>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        hf_local = cached_query_hf_local("", context, sentences=length)
+                        if hf_local:
+                            results.append(hf_local)
 
-                    # Download section
-                    st.markdown("### Download Summary")
-                    col_download1, col_download2, col_download3 = st.columns(3)
-                    
-                    # Prepare file content
-                    file_content = f"""DOCUVERSE AI - SUMMARY REPORT
-Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-Type: {result['type']}
-Method: {result['method']}
-Confidence: {result['confidence']}%
+                        top_conf = max(r.get('confidence', 0) for r in results if r) if results else 0
+                        if top_conf < 80 and HF_API_KEY:
+                            api_res = query_hf_api("", context)
+                            if api_res:
+                                results.append(api_res)
+                        if COHERE_API_KEY:
+                            cache_key = f"{hash(context)}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                            cohere_res = cached_query_cohere("", context, sentences=length, _cache_key=cache_key)
+                            if cohere_res:
+                                results.append(cohere_res)
 
-SUMMARY:
-{result['summary']}
+                        best = pick_best_result(results, "", desired_sentences=length)
+                        st.session_state.last_summary = best
+                        summary_text = '\n\n'.join(split_sentences(best.get('answer', '')))
 
----
-© 2025 DocuVerse AI - Revolutionary PDF Intelligence Platform"""
-                    
-                    with col_download1:
-                        st.download_button(
-                            label="Download TXT",
-                            data=file_content,
-                            file_name=f"summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                            mime="text/plain",
-                            key="download_txt_btn"
-                        )
-                    
-                    with col_download2:
-                        st.download_button(
-                            label="Download PDF",
-                            data=file_content,
-                            file_name=f"summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                            mime="text/plain",
-                            key="download_pdf_btn"
-                        )
-                    
-                    
+                        method = (best.get('method') or '').lower()
+                        engine_label = {
+                            'hf_api': 'Hugging Face API',
+                            'hf_local': 'Local model',
+                            'cohere': 'Cohere AI',
+                            'sumy': 'Built-in (Concise/Hybrid)',
+                            'none': 'Automatic'
+                        }.get(method.split('_')[0], 'Automatic')
 
-            st.markdown("---")
-            if st.button("Reset", key="reset_summary"):
-                st.session_state.last_summary = None
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.info("🌌 Please upload and extract a document first")
-
-    if st.session_state.active_page == 'qa':
-        if st.session_state.document_text:
-            st.markdown('<div class="content-section">', unsafe_allow_html=True)
-            st.markdown('<h2 class="section-title">Neuro Question & Answer</h2>', unsafe_allow_html=True)
-
-            question = st.text_input(
-                "Ask the neural network:",
-                placeholder="What is the main principle discussed in this document?",
-                help="Ask any question about your document",
-                key="neural_question"
-            )
-
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                if st.button("Run Q&A", key="neural_qa_btn") and question:
-                    with st.spinner("Processing (document-grounded)..."):
-                        # Ensure QA pipeline (lazy import with fallback)
-                        if st.session_state.hf_qa is None:
-                            try:
-                                from transformers import pipeline as hf_pipeline
-                                st.session_state.hf_qa = hf_pipeline("question-answering", model=st.session_state.hf_qa_name)
-                            except Exception:
-                                st.session_state.hf_qa = None
-
-                        # Chunk doc and retrieve best chunk by token overlap
-                        sentences = [s.strip() for s in st.session_state.document_text.split('.') if s.strip()]
-                        chunks = []
-                        chunk = []
-                        for s in sentences:
-                            chunk.append(s)
-                            if len(' '.join(chunk).split()) > 180:
-                                chunks.append('. '.join(chunk))
-                                chunk = []
-                        if chunk:
-                            chunks.append('. '.join(chunk))
-                        q_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', question.lower()))
-                        scored = []
-                        for ch in chunks:
-                            ch_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', ch.lower()))
-                            scored.append((len(q_words.intersection(ch_words)), ch))
-                        best_context = max(scored, key=lambda x: x[0])[1] if scored else st.session_state.document_text
-                        if st.session_state.hf_qa is not None:
-                            qa_out = st.session_state.hf_qa(question=question, context=best_context)
-                            answer = qa_out.get('answer','')
-                            score = float(qa_out.get('score',0))*100
-                            method = f'hf_qa_{st.session_state.hf_qa_name}'
-                        else:
-                            # Fallback: use heuristic sentence match from existing NeuroQA
-                            fallback = st.session_state.neuro_qa.neural_answer(question, best_context)
-                            answer = fallback['answer']
-                            score = fallback['confidence']
-                            method = 'neural_synthesis_fallback'
-                        result = { 'answer': (answer + '.' if not answer.endswith('.') else answer), 'confidence': round(score,1), 'method': method, 'neural_pathways': 1 }
-
-                    # Add to neural history
-                    st.session_state.neural_history.append({
-                        'question': question,
-                        'answer': result['answer'],
-                        'confidence': result['confidence'],
-                        'method': result.get('method', 'neural'),
-                        'timestamp': datetime.now().strftime("%H:%M:%S")
-                    })
-
-                    st.markdown(f"""
-                    <div class="cyber-card">
-                        <h4 class="cyber-text">Neural Response</h4>
-                        <div style="background: rgba(78, 205, 196, 0.05); padding: 2rem; border-radius: 15px; margin: 1rem 0; border-left: 4px solid #4ECDC4;">
-                            <p><strong>Query:</strong> {question}</p>
-                            <p><strong>Answer:</strong> {result['answer']}</p>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 1.5rem;">
-                            <span class="cyber-text">Confidence: {result['confidence']}%</span>
-                            <span class="cyber-text">Method: {result.get('method', 'neural')}</span>
-                            <span class="cyber-text">Pathways: {result.get('neural_pathways', 1)}</span>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            # Neural History
-            if st.session_state.neural_history:
-                st.markdown("### 🕒 Neural Processing History")
-
-                for i, qa in enumerate(reversed(st.session_state.neural_history[-5:])):
-                    with st.expander(f"💭 {qa['question'][:50]}... ({qa['timestamp']})",
-                                   expanded=(i==0)):
                         st.markdown(f"""
                         <div class="cyber-card">
-                            <p><strong>❓ Question:</strong> {qa['question']}</p>
-                            <p><strong>🤖 Answer:</strong> {qa['answer']}</p>
-                            <div style="margin-top: 1rem;">
-                                <span class="cyber-text">Confidence: {qa['confidence']}%</span> •
-                                <span class="cyber-text">Method: {qa['method']}</span> •
-                                <span class="cyber-text">Time: {qa['timestamp']}</span>
+                            <h4 class="cyber-text">Best Summary</h4>
+                            <div style="background: rgba(0, 255, 127, 0.05); padding: 1.0rem; border-radius: 12px; margin: 0.6rem 0; border-left: 4px solid #00FF7F;">
+                                <p style="font-size: 1.05rem; line-height: 1.75; color: #E2E8F0;">{escape(summary_text)}</p>
+                            </div>
+                            <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem;">
+                                <span class="cyber-text">Confidence: {round(best.get('confidence', 0), 1)}%</span>
+                                <span class="cyber-text">Engine: {escape(engine_label)}</span>
+                                <span class="cyber-text">Sentences: {len(split_sentences(best.get('answer', '')))}</span>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
 
-            st.markdown("---")
+                        file_content = f"""DOCUVERSE AI - SUMMARY REPORT
+Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S IST")}
+Engine: {engine_label}
+Mode: Automatic
+Confidence: {round(best.get('confidence',0),1)}%
+Sentence Count: {len(split_sentences(best.get('answer', '')))}
+SUMMARY:
+{summary_text}
+---
+© 2025 DocuVerse AI - Revolutionary Document Intelligence Platform"""
+
+                        d1, d2 = st.columns(2)
+                        with d1:
+                            st.download_button(
+                                label="Download TXT",
+                                data=create_download_file(file_content, "txt"),
+                                file_name=f"summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                                mime="text/plain",
+                                key="download_summary_txt"
+                            )
+                        with d2:
+                            if importlib.util.find_spec("reportlab"):
+                                st.download_button(
+                                    label="Download PDF",
+                                    data=create_download_file(file_content, "pdf"),
+                                    file_name=f"summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                                    mime="application/pdf",
+                                    key="download_summary_pdf"
+                                )
+
+            if st.button("Reset", key="reset_summary"):
+                st.session_state.last_summary = None
+                st.cache_resource.clear()
+                st.cache_data.clear()
+                st.rerun()
+
+    # Q&A Page
+    if st.session_state.active_page == 'qa':
+        if not st.session_state.document_text.strip():
+            st.error("🌌 No valid document text to query. Please upload or input a document.")
+        else:
+            st.markdown('<div class="content-section"><h2 class="section-title">Ask your document</h2></div>', unsafe_allow_html=True)
+            question = st.text_input("Question:", placeholder="e.g., What are the key risks and action items?", key="qa_question")
+            
+            if st.button("Get Answer", key="qa_run"):
+                if not question.strip():
+                    st.warning("Please enter a valid question.")
+                else:
+                    with st.spinner("Searching and answering..."):
+                        context = clean_text(build_qa_context(st.session_state.document_text, question, chunk_size=5, max_chars=4000))
+                        if not context:
+                            st.error("No valid context available for Q&A.")
+                            return
+                        results = []
+
+                        try:
+                            neuro = st.session_state.neuro_qa.neural_answer(question, context)
+                            results.append(neuro)
+                        except Exception:
+                            results.append({'answer': '', 'confidence': 0, 'method': 'neural_error'})
+
+                        hf_local = cached_query_hf_local(question, context)
+                        if hf_local:
+                            results.append(hf_local)
+
+                        top_conf = max([r.get('confidence', 0) for r in results if r], default=0)
+                        if top_conf < 75 and HF_API_KEY:
+                            api_res = query_hf_api(question, context)
+                            if api_res:
+                                results.append(api_res)
+                        if top_conf < 75 and COHERE_API_KEY:
+                            cohere_res = cached_query_cohere(question, context)
+                            if cohere_res:
+                                results.append(cohere_res)
+
+                        best_result = pick_best_result(results, question, desired_sentences=3)
+                        if best_result.get('confidence', 0) < 70 or is_bad_answer(best_result.get('answer', ''), question):
+                            st.warning("Low confidence answer. Try rephrasing your question.")
+
+                        answer_text = '\n\n'.join(split_sentences(best_result.get('answer', '')))
+                        method = (best_result.get('method') or '').lower()
+                        engine_label = {
+                            'hf_api': 'Hugging Face API',
+                            'hf_local': 'Local model',
+                            'cohere': 'Cohere AI',
+                            'neural': 'Built-in Heuristic',
+                            'none': 'Automatic'
+                        }.get(method.split('_')[0], 'Automatic')
+
+                        st.session_state.neural_history.append({
+                            'question': question,
+                            'answer': best_result.get('answer', ''),
+                            'confidence': best_result.get('confidence', 0),
+                            'method': best_result.get('method', ''),
+                            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S IST")
+                        })
+                        st.session_state.neural_history = st.session_state.neural_history[-50:]
+
+                        st.markdown(f"""
+                        <div class="cyber-card">
+                            <h4 class="cyber-text">Answer</h4>
+                            <div style="background: rgba(78, 205, 196, 0.05); padding: 1.0rem; border-radius: 12px; margin: 0.6rem 0; border-left: 4px solid #4ECDC4;">
+                                <p><strong>Q:</strong> {escape(question)}</p>
+                                <p><strong>A:</strong> {escape(answer_text)}</p>
+                            </div>
+                            <div style="margin-top: 0.4rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                                <span class="cyber-text">Confidence: {round(best_result.get('confidence', 0), 1)}%</span>
+                                <span class="cyber-text">Engine: {escape(engine_label)}</span>
+                                <span class="cyber-text">Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S IST")}</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            if st.session_state.neural_history:
+                st.markdown("### 🕒 Recent Q&A")
+                for i, qa in enumerate(reversed(st.session_state.neural_history[-5:])):
+                    answer_text = '\n\n'.join(split_sentences(qa['answer']))
+                    engine_label = {
+                        'hf_api': 'Hugging Face API',
+                        'hf_local': 'Local model',
+                        'cohere': 'Cohere AI',
+                        'neural': 'Built-in Heuristic',
+                        'none': 'Automatic'
+                    }.get((qa.get('method') or '').lower().split('_')[0], 'Automatic')
+                    with st.expander(f"💭 {escape(qa['question'][:60])}... ({qa['timestamp']})", expanded=(i == 0)):
+                        st.markdown(f"""
+                        <div class="cyber-card">
+                            <p><strong>❓ Question:</strong> {escape(qa['question'])}</p>
+                            <p><strong>🤖 Answer:</strong> {escape(answer_text)}</p>
+                            <div style="margin-top: 0.4rem;">
+                                <span class="cyber-text">Confidence: {round(qa['confidence'], 1)}%</span>
+                                <span class="cyber-text" style="margin-left: 1rem;">Engine: {escape(engine_label)}</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
             if st.button("Reset", key="reset_qa"):
                 st.session_state.neural_history = []
+                st.cache_resource.clear()
+                st.cache_data.clear()
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.info("🌌 Please upload and extract a document first")
-
-    # Revolutionary Footer - Fixed HTML Rendering
-    st.markdown("---")
-
-    # Create footer using HTML components instead of raw HTML
-    st.markdown("""
-    <div class="footer-container">
-        <h3 class="footer-title">🌟 DOCUVERSE AI - THE QUANTUM FUTURE</h3>
-        <p class="footer-subtitle">Revolutionary PDF Intelligence • Quantum Processing • Neural Networks • Beyond Reality</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Feature tags using columns instead of raw HTML
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.markdown("""
-        <div class="footer-tag footer-tag-1">⚡ Quantum Speed</div>
-        """, unsafe_allow_html=True)
-
-    with col2:
-        st.markdown("""
-        <div class="footer-tag footer-tag-2">🧠 Neural Intelligence</div>
-        """, unsafe_allow_html=True)
-
-    with col3:
-        st.markdown("""
-        <div class="footer-tag footer-tag-3">🌟 Revolutionary Tech</div>
-        """, unsafe_allow_html=True)
-
-    with col4:
-        st.markdown("""
-        <div class="footer-tag footer-tag-4">🌌 Infinite Possibilities</div>
-        """, unsafe_allow_html=True)
-
-    # Copyright information
-    st.markdown("""
-    <div class="footer-copyright">
-        <p><strong>© 2025 Justine & Krishna. All Rights Reserved.</strong></p>
-        <p>DocuVerse AI™ - Revolutionary PDF Intelligence Platform</p>
-    </div>
-    """, unsafe_allow_html=True)
-
 
 if __name__ == "__main__":
     main()
