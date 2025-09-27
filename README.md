@@ -1,4 +1,4 @@
-# 📘 DocuVerse AI
+# 📘 DOCUVERSE AI
 
 DocuVerse AI is an intelligent document analysis system that allows users to upload documents (PDFs) and interact with them using **AI-powered tools**. It provides **summarization, question answering, and content search**, making it easier to extract meaningful insights from large documents.
 
@@ -88,16 +88,17 @@ DocuVerse/
 │── app.py                # Main Streamlit application
 │── requirements.txt       # Dependencies
 │── README.md              # Project documentation
-└── assets/                # (Optional) Screenshots, diagrams
 ```
 
 ---
 
-## 👩‍💻 Contribution
+## 👩‍💻 Contribution Statement
 
-This project was developed as part of the **Capstone Project** under the Department of Information and Communication Technology.
+This project was developed collaboratively as part of our Capstone Project under the Department of Information and Communication Technology.
 
-For group submissions, please include a **contribution statement** here (who worked on deployment, monitoring, and maintenance).
+* **Umutoni Justine** – Led the project implementation, deployment on Hugging Face Spaces, and prepared the documentation. Also worked on monitoring setup and designed the maintenance plan.
+* **Krishna Dixit** – Assisted in testing, reviewing system outputs, and providing feedback during the deployment and monitoring phases.
+
 
 ---
 
@@ -105,3 +106,4 @@ For group submissions, please include a **contribution statement** here (who wor
 
 This project is for **educational and academic purposes only**.
 
+---
