@@ -94,7 +94,7 @@ DocuVerse/
 
 ## 👩‍💻 Contribution Statement
 
-This project was developed collaboratively as part of our Capstone Project under the Department of Information and Communication Technology.
+This project was developed collaboratively as part of our **CAPSTONE PROJECT** under the Department of Information and Communication Technology.
 
 * **Umutoni Justine** – Led the project implementation, deployment on Hugging Face Spaces, and prepared the documentation. Also worked on monitoring setup and designed the maintenance plan.
 * **Krishna Dixit** – Assisted in testing, reviewing system outputs, and providing feedback during the deployment and monitoring phases.
